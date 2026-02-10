@@ -20,7 +20,6 @@ Building data systems, pipelines, and decision-ready platforms.
 ![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
-![Go](https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white)
 
 ### Data & Backend
 ![SQL](https://img.shields.io/badge/SQL-003B57?style=flat)
@@ -28,6 +27,10 @@ Building data systems, pipelines, and decision-ready platforms.
 ![Neo4j](https://img.shields.io/badge/Neo4j-008CC1?style=flat&logo=neo4j&logoColor=white)
 ![REST](https://img.shields.io/badge/REST-02569B?style=flat)
 ![GraphQL](https://img.shields.io/badge/GraphQL-E10098?style=flat&logo=graphql&logoColor=white)
+
+### Data Engineering & Orchestration
+![Airflow](https://img.shields.io/badge/Apache_Airflow-017CEE?style=flat&logo=apache-airflow&logoColor=white)
+![Kestra](https://img.shields.io/badge/Kestra-6B4EFF?style=flat)
 
 ### Frameworks & Tools
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=node.js&logoColor=white)
