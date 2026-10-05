@@ -112,6 +112,13 @@ USER = "Delebayo Asher"
 HANDLE = "AsherJD-io"
 FETCH_USER = "asher"
 
+# Programming languages already named in the stack field below. They are
+# suppressed in the langs row so the profile does not print the same technology
+# twice: stack is curated intent, langs is GitHub-derived signal, and the two
+# are only interesting when they differ. Keys are compared case-sensitively
+# because GitHub reports canonical names ("TypeScript", not "typescript").
+STACK_LANGUAGES = frozenset({"TypeScript"})
+
 # Last verified public counters, used when GitHub cannot be reached at all and
 # no usable cache exists. Same schema as the live path so profile_block() is
 # schema-agnostic. Only a floor for offline reproducibility - it is never
@@ -329,7 +336,11 @@ def fetch_stats() -> dict:
         "prs": s.total_pull_requests_made,
         "merged": s.total_pull_requests_merged,
         "rank": s.user_rank.level,
-        "languages": [name for name, _ in s.languages_sorted[:3]],
+        # Fetched wider than it is displayed. The package hands back the top 6;
+        # taking 3 here would truncate before the TypeScript filter runs in
+        # profile_block(), leaving the langs row short. profile_block() applies
+        # the cap after filtering, so the row still shows at most 3.
+        "languages": [name for name, _ in s.languages_sorted],
     }
 
     # The repo count is a separate request from the package's helper, so it is
@@ -379,7 +390,18 @@ def profile_block(stats: dict) -> str:
     val = "\x1b[93m"      # 93 #f4d67a gold  - every value
     num = "\x1b[94m"      # 94 #60a5fa blue  - inline highlights ONLY
     dot = f" {dim}\u00b7{val} "
-    langs = ", ".join(stats["languages"])
+
+    # stack is the technologies field - what Asher works with, curated.
+    # langs is GitHub-derived signal. TypeScript appears in both, so it is
+    # filtered out of langs to avoid saying the same thing twice on one screen.
+    # The list stays dynamic: it is still whatever GitHub reports, minus the
+    # duplicates, never a hand-written list. Filtering happens here, at render
+    # time, so the same rule applies to the live, cached and snapshot paths -
+    # filtering earlier would leave an already-written cache unfiltered.
+    # Displayed in descending GitHub share order, capped at 3.
+    langs = ", ".join(
+        [name for name in stats["languages"] if name not in STACK_LANGUAGES][:3]
+    )
 
     # The header is the 30;101 pair: 30 is the dark text, 101 the warm filled
     # backing. "fetch profile" sits OUTSIDE the backing as a separate muted
