@@ -256,11 +256,26 @@ def profile_block(stats: dict) -> str:
     #   90 #64748b   94 #3b82f6   95 #60a5fa   96 #f8fafc   97 #f8fafc
     # 96 is PRIMARY TEXT in this theme, not light blue. Using it for the labels
     # made every label render white, indistinguishable from the name value.
-    key = "\x1b[95m"     # #60a5fa light blue - labels
-    val = "\x1b[37m"     # #cbd5e1 secondary  - values
-    name = "\x1b[97m"    # #f8fafc primary    - identity line
-    num = "\x1b[95m"     # #60a5fa light blue - counters
-    head = "\x1b[95m"    # #60a5fa light blue - header line
+    #
+    # ROLE SEPARATION, not one blue for everything. The previous revision gave
+    # labels, counters and the header the SAME slot (95), so the frame read as
+    # "blue labels on grey" and the reference's separate value, label and
+    # inline-highlight roles collapsed into a single accent.
+    #
+    #   strongest accent  94 #3b82f6 - header identity line, inline numbers
+    #   secondary accent  95 #60a5fa - PRIMARY labels, shell identity, ASHER mark
+    #   neutral primary   97 #f8fafc - primary values, typed command, the $
+    #   neutral secondary 37 #cbd5e1 - ordinary values, the dominant ink
+    #   muted             90 #64748b - SECONDARY labels, separators, qualifiers
+    #
+    # Blue is now split across three visibly different roles rather than one,
+    # and neutral ink still dominates the frame.
+    key = "\x1b[95m"     # #60a5fa secondary accent - primary labels
+    key2 = "\x1b[90m"    # #64748b muted          - continuation / secondary labels
+    val = "\x1b[37m"     # #cbd5e1 neutral secondary - values
+    name = "\x1b[97m"    # #f8fafc neutral primary   - primary value
+    num = "\x1b[94m"     # #3b82f6 strongest accent - inline highlights only
+    head = "\x1b[94m"    # #3b82f6 strongest accent - header identity line
     dot = f" {dim}\u00b7{val} "
     langs = ", ".join(stats["languages"])
 
@@ -273,8 +288,8 @@ def profile_block(stats: dict) -> str:
             f"{key}focus  \x1b[0m{val}Data Platforms{dot}Pipelines{dot}Decision Intelligence\x1b[0m",
             "",
             f"{key}stack  \x1b[0m{val}Python{dot}SQL{dot}TypeScript{dot}PostgreSQL{dot}BigQuery",
-            f"{key}       \x1b[0m{val}dbt{dot}Kestra{dot}PySpark{dot}Kafka/Redpanda{dot}Flink/PyFlink",
-            f"{key}       \x1b[0m{val}Docker{dot}Next.js\x1b[0m",
+            f"{key2}       \x1b[0m{val}dbt{dot}Kestra{dot}PySpark{dot}Kafka/Redpanda{dot}Flink/PyFlink",
+            f"{key2}       \x1b[0m{val}Docker{dot}Next.js\x1b[0m",
             "",
             f"{key}web    \x1b[0m{val}codered-azure.vercel.app",
             f"{key}in     \x1b[0m{val}linkedin.com/in/delebayo-joea",
@@ -283,9 +298,9 @@ def profile_block(stats: dict) -> str:
             "",
             f"{key}github \x1b[0m{num}{stats['commits']}{val} commits (1y)"
             f"{dot}{num}{stats['prs']}{val} PRs{dot}{num}{stats['merged']}{val} merged",
-            f"{key}       \x1b[0m{num}{stats['stars']}{val} stars{dot}{num}{stats['followers']}{val} followers"
+            f"{key2}       \x1b[0m{num}{stats['stars']}{val} stars{dot}{num}{stats['followers']}{val} followers"
             f"{dot}{val}rank {num}{stats['rank']}",
-            f"{key}       \x1b[0m{val}langs  {langs}",
+            f"{key2}       \x1b[0m{val}langs  {langs}",
         ]
     )
 
