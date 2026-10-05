@@ -1,37 +1,72 @@
-# Ordaciti-derived colour language, reduced to a single slate/blue axis.
-# Every value below is one of the seven approved colours:
-#   bg     #0f172a
-#   deep   #2563eb
-#   mid    #3b82f6
-#   light  #60a5fa
-#   fg     #f8fafc
-#   muted  #cbd5e1
-#   dim    #64748b
+# Colour scheme for the AsherJD-io profile terminal.
 #
-# The 16 ANSI slots are filled by reusing that axis at different intensities.
-# No greens, reds or magentas are introduced, so the frame reads as one system
-# rather than a multi-colour terminal theme.
+# COLOUR ROLES
+# ------------
+# Each ANSI slot carries one semantic role, so a reader can tell a label from a
+# value from an inline highlight without reading the text:
+#
+#   \x1b[30;101m  section header   dark text on a warm filled backing
+#   \x1b[96m      labels           cyan
+#   \x1b[93m      values           gold
+#   \x1b[91m      typed command    warm, while it is being typed
+#   \x1b[92m      resolved command green, after delete_row() recolours it
+#   \x1b[94m      inline tags      blue, sparingly, on the counters only
+#   prompt        \x1b[91m user, \x1b[93m path, neutral @ : and $
+#
+# Blue is deliberately the rarest role in the frame. Measured ink shares of the
+# settled frame, from a palette census of the rendered PNG:
+#
+#   gold 1.17%  warm 0.50%  neutral 0.44%  cyan 0.14%  green 0.12%  blue 0.03%
+#
+# A frame where blue carries labels, values, the header and the mark inverts
+# that hierarchy and collapses into a single-hue terminal. Blue stays an accent.
+#
+# BACKGROUND SAFETY
+# -----------------
+# gifos reads exactly three sections - default_colors, normal_colors and
+# bright_colors. Background slots are NOT a separate table: convert_ansi_escape
+# maps 40-47 off normal_colors and 100-107 off bright_colors, so a background
+# escape and its foreground twin share one colour. There is no way to give 101
+# a warm backing without also giving 91 that colour, and that is fine here
+# because 91 is the prompt-identity and typed-command warm anyway.
+#
+# The risk runs the other way. 104 (bright blue background) would be #60a5fa,
+# so any stray background escape could paint a bright blue selection box. The
+# profile emits exactly one background, 101; every other bright slot is a
+# foreground role. main.py asserts that, so the safety property is checked
+# rather than assumed.
+#
+# The deep navy #0f172a canvas is kept.
 
 [ordaciti.default_colors]
-fg = "#f8fafc"
+fg = "#cbd5e1"
 bg = "#0f172a"
 
 [ordaciti.normal_colors]
-black = "#64748b"
-red = "#2563eb"
-green = "#3b82f6"
-yellow = "#60a5fa"
-blue = "#2563eb"
-magenta = "#3b82f6"
-cyan = "#60a5fa"
-white = "#cbd5e1"
+# 30 is the section-header TEXT colour. It is the canvas colour #0f172a: the
+# header is dark text knocked out of the warm 101 backing, so reusing the canvas
+# colour is both the literal reading of "dark text on the backing" and free -
+# no extra colour enters the palette.
+black = "#0f172a"
+red = "#ef7e7e"
+green = "#96d988"
+yellow = "#f4d67a"
+blue = "#3b82f6"
+magenta = "#bc83e3"
+cyan = "#67cbe7"
+# 37 is the NEUTRAL TERMINAL TEXT role: supporting ink for shell symbols and
+# the ASHER mark. It is a supporting role, not the value colour; values are 93
+# gold.
+white = "#b3b9b8"
 
 [ordaciti.bright_colors]
+# 90 muted is the qualifiers and separator rule role only - supporting terminal
+# furniture, never a content colour.
 black = "#64748b"
-red = "#3b82f6"
-green = "#60a5fa"
-yellow = "#f8fafc"
-blue = "#3b82f6"
-magenta = "#60a5fa"
-cyan = "#f8fafc"
+red = "#ef7e7e"      # 91 prompt identity + typed command; 101 header backing
+green = "#96d988"    # 92 resolved command + closing message
+yellow = "#f4d67a"   # 93 prompt path + all profile values
+blue = "#60a5fa"     # 94 Ordaciti inline highlights
+magenta = "#bc83e3"
+cyan = "#67cbe7"     # 96 labels
 white = "#f8fafc"

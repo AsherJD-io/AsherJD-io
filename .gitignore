@@ -6,3 +6,6 @@ output.gif
 
 __pycache__/
 *.pyc
+
+# Local virtual environment used to run the generator
+.venv/

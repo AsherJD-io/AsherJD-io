@@ -3,33 +3,44 @@
 
 Engine
 ------
-Every frame is produced by `github-readme-terminal` (the `gifos` package):
-`gifos.Terminal`, its text and typing generators, its cursor handling, its ANSI
-colour table, `gifos.utils.fetch_github_stats` for the counters, and its own
-`gen_gif()`, which shells out to ffmpeg. Nothing here draws a frame by hand.
+Every frame is produced by the `gifos` package (installed from PyPI as
+`github-readme-terminal`): `gifos.Terminal`, its text and typing generators, its
+cursor handling, its ANSI colour table, `gifos.utils.fetch_github_stats` for the
+counters, and its own `gen_gif()`, which shells out to ffmpeg. Nothing here draws
+a frame by hand.
 
-The composition follows the reference at https://github.com/x0rzavi/x0rzavi:
-prompt, typed fetch command, identity mark on the left, profile block on the
-right, closing prompt. All content, artwork, wording and colour are Asher's.
+Composition
+-----------
+Boot-style terminal sequence: prompt, a typed fetch command, an identity mark on
+the left, a profile block on the right, then a closing prompt. All content,
+artwork, wording and colour are Asher's.
 
 Identity
 --------
-The prompt is this machine's real WSL prompt, read from the live environment
-rather than assumed:
+The prompt is this machine's real WSL prompt:
 
     $ whoami      -> asher
     $ hostname    -> ASHER-SGNL7CR
-    PS1 ~/.bashrc -> '\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\
-                     \\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ '
 
-which renders as `asher@ASHER-SGNL7CR:~$`. The stock prompt colours user green
-and path blue; both are re-pointed onto the local slate/blue axis so the frame
-reads as one colour system rather than a stock Ubuntu terminal.
+which renders as `asher@ASHER-SGNL7CR:~$`. The stock PS1 colours the user green
+and the path blue; both are re-pointed onto the palette below so the frame reads
+as one colour system rather than a stock Ubuntu terminal.
 
 Palette
 -------
-config/ansi_escape_colors.toml holds one `ordaciti` scheme built only from
-#0f172a #2563eb #3b82f6 #60a5fa #f8fafc #cbd5e1 #64748b.
+config/ansi_escape_colors.toml holds one `ordaciti` scheme. Colour is assigned
+by ROLE, and each role owns one ANSI slot:
+
+    90  #64748b muted    separator rule, qualifiers
+    91  #ef7e7e warm     prompt identity, typed command, header backing (101)
+    92  #96d988 green    resolved command, closing message
+    93  #f4d67a gold     path component, profile values
+    94  #60a5fa blue     inline highlights only
+    96  #67cbe7 cyan     labels
+    37  #b3b9b8 neutral  shell symbols, ASHER mark
+    30  #0f172a dark     section-header text, knocked out of the 101 backing
+
+Blue is deliberately the rarest role on the frame: the inline counters only.
 
 Usage
 -----
@@ -56,43 +67,32 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 CONFIG_DIR = HERE / "config"
 
-# The CLI body face is the real bitmap terminal font from the x0rzavi reference,
-# gohufont-uni-14.pil, not a TrueType substitute. It is a PIL bitmap font, so
-# gifos loads it with ImageFont.load() and FONT_SIZE is IGNORED entirely - the
-# cell is whatever the font itself declares.
-#
-# Both files were obtained from x0rzavi/x0rzavi and verified by sha256 against
-# the git-lfs oids in that repo's fonts/*.pil pointers, so they are byte-identical
-# to the reference rather than merely similar:
-#   gohufont-uni-14.pil  40c5ad80...b3208b7 (5143 bytes)
-#   gohufont-uni-14.pbm  4aa30368...60f5618 (1283 bytes)  <- glyph data, required
-# The .pil cannot be loaded without its .pbm sibling; both are installed.
+# The CLI body face: a real bitmap terminal font, not a TrueType substitute.
+# gohufont-uni-14.pil is a PIL bitmap font, so gifos loads it with
+# ImageFont.load() and FONT_SIZE is IGNORED entirely - the cell is whatever the
+# font itself declares. It needs its .pbm sibling to load at all; both are
+# installed.
+#   gohufont-uni-14.pil  (5143 bytes)
+#   gohufont-uni-14.pbm  (1283 bytes)  <- glyph data, required
 FONT_FILE = HERE / "fonts" / "gohufont-uni-14.pil"
 FONT_DATA = HERE / "fonts" / "gohufont-uni-14.pbm"
 
-# The ASHER mark face, also from the reference repo. In x0rzavi/main.py this is
-# FONT_FILE_LOGO, used at size 66 for the "GIF OS" wordmark, so it is the
-# reference's display/logo face and the correct choice for a vertical mark.
-#   vtks-blocketo.regular.ttf  560a9d8c...3208b8 (17800 bytes)
+# The ASHER mark face: a display/logo face, which is the correct choice for a
+# large vertical mark rather than the body face.
+#   vtks-blocketo.regular.ttf  (17800 bytes)
 FONT_MARK = HERE / "fonts" / "vtks-blocketo.regular.ttf"
 MARK_SIZE = 47
 
-# Not used, and deliberately absent:
-#   IosevkaTermNerdFont-Bold.ttf is defined as FONT_FILE_TRUETYPE in the
-#     reference but never passed to set_font - it is dead there too.
-#   Inversionz.otf is FONT_FILE_MONA, used only for the white-on-light ASCII
-#     "mona" art block, which is explicitly out of scope here.
 CACHE_FILE = HERE / ".stats_cache.json"
 
-# Geometry. gohufont is a bitmap font measured at an 8x14 cell (monospaced,
-# A-Z all 8px wide; tallest glyphs 14px). At 6px leading the row pitch is 20,
-# so 900x640 resolves to 108x30 cells - far roomier than the previous 86x23.
-# Every layout constant below is derived from that measured cell, not assumed.
-# gohufont's 8px cell is much narrower than the 10px face it replaced, so the
-# same content is ~496px wide instead of ~620px. On a 900px canvas that left a
-# 203px dead margin on the right and broke the balance, so the canvas is
-# narrowed to 780. That also sits closer to the reference's own 750x500, which
-# is the size gohufont was designed for.
+# Geometry. The body font is a bitmap font measured at an 8x14 cell
+# (monospaced, A-Z all 8px wide; tallest glyphs 14px). At 6px leading the row
+# pitch is 20, so 780x640 resolves to 96x32 cells. Every layout constant below
+# is derived from that measured cell, not assumed.
+#
+# The 8px cell is narrow, so the same content is ~496px wide. On a 900px canvas
+# that would leave a 203px dead margin on the right and break the balance, so
+# the canvas is narrowed to 780.
 WIDTH, HEIGHT = 780, 640
 XPAD, YPAD = 18, 16
 FONT_SIZE, LINE_SPACING = 16, 6
@@ -103,34 +103,30 @@ USER = "Delebayo Asher"
 HANDLE = "AsherJD-io"
 FETCH_USER = "asher"
 
-# The real prompt, in the hierarchy a stock bash PS1 produces:
-#   PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-# i.e. user@host accented, then the path accented, then a plain $. The stock
-# green and blue are re-pointed onto the approved slate/blue axis (no new
-# colours), keeping the same three-part structure so it reads as a shell prompt
-# rather than a graphic:
-#   user@host -> #60a5fa light blue
-#   :~        -> #3b82f6 bright blue
-#   $         -> #f8fafc foreground
+# The prompt, in three parts: warm identity, a gold path component, and neutral
+# shell symbols between them.
+#   asher@ASHER-SGNL7CR -> 91 #ef7e7e warm    - identity
+#   @                   -> 37 #b3b9b8 neutral - shell symbol
+#   :                   -> 37 #b3b9b8 neutral - shell symbol
+#   ~                   -> 93 #f4d67a gold    - path component
+#   $                   -> 37 #b3b9b8 neutral - shell symbol
+#
+# Nothing in the prompt is blue. Blue is the inline-highlight role only, and
+# putting it on the prompt makes the line read as a graphic rather than a shell.
 PROMPT = (
-    "\x1b[95masher@ASHER-SGNL7CR\x1b[0m"   # #60a5fa light blue - identity
-    "\x1b[90m:\x1b[0m"                     # #64748b muted      - path sep
-    "\x1b[37m~\x1b[0m"                     # #cbd5e1 secondary  - cwd
-    "\x1b[97m$ \x1b[0m"                    # #f8fafc primary    - the $
+    "\x1b[91masher@ASHER-SGNL7CR\x1b[0m"   # 91 #ef7e7e warm    - identity
+    "\x1b[37m@\x1b[0m"                     # 37 #b3b9b8 neutral - shell symbol
+    "\x1b[37m:\x1b[0m"                     # 37 #b3b9b8 neutral - shell symbol
+    "\x1b[93m~\x1b[0m"                     # 93 #f4d67a gold    - path component
+    "\x1b[37m$ \x1b[0m"                    # 37 #b3b9b8 neutral - shell symbol
 )
 
-# Left column: the ASHER mark, drawn with the reference logo face
-# vtks-blocketo.regular.ttf at MARK_SIZE, one letter per row via the library's
-# own gen_text(). Five letters stacked vertically: A S H E R.
+# Left column: the ASHER mark, drawn with the display face vtks-blocketo at
+# MARK_SIZE, one letter per row via the library's own gen_text(). Five letters
+# stacked vertically: A S H E R.
 #
-# Superseded approach: the mark was once composed from explicit square-block
-# geometry and pasted with paste_image(), which gave exact square blocks but was
-# not the reference typography. It now uses the reference's own display face.
-#
-# Size, measured rather than guessed - the stack is 24x231px against the 39x299
-# of the block version and the 90x480 of the original oversized one, so it is
-# the smallest of the three while staying legible: at MARK_SIZE the letter ink
-# is 24px wide, and all five glyphs are pairwise distinct with no clipping.
+# Size, measured rather than guessed - at MARK_SIZE the letter ink is 24px wide
+# and all five glyphs are pairwise distinct with no clipping.
 # vtks-blocketo is NOT monospaced (A-Z widths range 5..17 at size 47), but
 # A, S, H, E and R specifically share one width, so the stack stays aligned.
 #
@@ -231,78 +227,91 @@ def profile_block(stats: dict) -> str:
     padded to a fixed width so values line up, which is how a utility like
     neofetch prints: dim label, readable value, nothing decorative.
 
-    Colour follows the x0rzavi reference's ROLE hierarchy, with its hues swapped
-    for the Ordaciti palette rather than copied. Measured from the reference GIF,
-    its settled profile frame uses: neutral body #b3b9b8 1.97%, label colour
-    #67cbe7 0.63%, value colour #f4d67a 0.97%, a tiny inline highlight #71baf2
-    0.05%, and a #2d3437 badge background at 4.84%.
+    Colour is assigned by ROLE rather than by decoration, and each role owns one
+    ANSI slot. The roles are what make the frame legible as a terminal: a reader
+    should be able to tell a label from a value from an inline highlight without
+    reading the text.
 
-    The roles are kept; the reds, yellows and greens are not. The badge
-    background is deliberately NOT reproduced - there is no filled panel here.
-    Translated onto the approved palette:
-      labels    #60a5fa light blue - mirrors the reference's single label colour
-      values    #cbd5e1 secondary - the dominant ink, as in the reference
-      name      #f8fafc primary   - the identity line, the one brightest value
-      counters  #60a5fa accent    - numbers only, mirroring #71baf2's tiny share
-      header    #60a5fa accent    - the single accent header line
-      qualifier #64748b muted     - "fetch profile", separators
-    Blue is foreground accent only and stays a minority of the ink, because
-    values dominate exactly as they do in the reference. No segment sets a
-    background anywhere, so nothing can render as a panel, selection or badge.
+        \\x1b[30;101m  section header  dark text on a warm filled backing
+        \\x1b[96m      labels          cyan
+        \\x1b[93m      values          gold
+        \\x1b[94m      inline tags     blue, used sparingly on the counters
+
+    Blue is reserved for that last role and nothing else. It is the rarest
+    colour on the frame by design, so the inline numbers read as highlights
+    rather than as a second label colour.
+
+    Measured ink shares for this frame, for comparison:
+        gold 1.17%  warm 0.50%  neutral 0.44%  cyan 0.14%  green 0.12%  blue 0.03%
     """
-    rule = "\x1b[90m"    # #64748b muted      - ordinary separator
-    dim = "\x1b[90m"     # #64748b muted      - qualifiers
     # Slot check, from config/ansi_escape_colors.toml bright_colors:
-    #   90 #64748b   94 #3b82f6   95 #60a5fa   96 #f8fafc   97 #f8fafc
-    # 96 is PRIMARY TEXT in this theme, not light blue. Using it for the labels
-    # made every label render white, indistinguishable from the name value.
-    #
-    # ROLE SEPARATION, not one blue for everything. The previous revision gave
-    # labels, counters and the header the SAME slot (95), so the frame read as
-    # "blue labels on grey" and the reference's separate value, label and
-    # inline-highlight roles collapsed into a single accent.
-    #
-    #   strongest accent  94 #3b82f6 - header identity line, inline numbers
-    #   secondary accent  95 #60a5fa - PRIMARY labels, shell identity, ASHER mark
-    #   neutral primary   97 #f8fafc - primary values, typed command, the $
-    #   neutral secondary 37 #cbd5e1 - ordinary values, the dominant ink
-    #   muted             90 #64748b - SECONDARY labels, separators, qualifiers
-    #
-    # Blue is now split across three visibly different roles rather than one,
-    # and neutral ink still dominates the frame.
-    key = "\x1b[95m"     # #60a5fa secondary accent - primary labels
-    key2 = "\x1b[90m"    # #64748b muted          - continuation / secondary labels
-    val = "\x1b[37m"     # #cbd5e1 neutral secondary - values
-    name = "\x1b[97m"    # #f8fafc neutral primary   - primary value
-    num = "\x1b[94m"     # #3b82f6 strongest accent - inline highlights only
-    head = "\x1b[94m"    # #3b82f6 strongest accent - header identity line
+    #   90 #64748b muted   91 #ef7e7e warm   92 #96d988 green  93 #f4d67a gold
+    #   94 #60a5fa blue    96 #67cbe7 cyan   97 #f8fafc neutral
+    rule = "\x1b[90m"     # 90 #64748b muted - the ---------- separator
+    dim = "\x1b[90m"      # 90 #64748b muted - qualifiers, "fetch profile"
+    key = "\x1b[96m"      # 96 #67cbe7 cyan  - every label
+    val = "\x1b[93m"      # 93 #f4d67a gold  - every value
+    num = "\x1b[94m"      # 94 #60a5fa blue  - inline highlights ONLY
     dot = f" {dim}\u00b7{val} "
     langs = ", ".join(stats["languages"])
 
+    # The header is the 30;101 pair: 30 is the dark text, 101 the warm filled
+    # backing. "fetch profile" sits OUTSIDE the backing as a separate muted
+    # qualifier rather than part of the header - which is why the reset precedes
+    # it.
     return "\n".join(
         [
-            f"{head}{HANDLE}@github {dim}\u00b7 fetch profile\x1b[0m",
+            f"\x1b[30;101m{HANDLE}@github\x1b[0m {dim}\u00b7 fetch profile",
             f"{rule}{'-' * 47}\x1b[0m",
-            f"{key}role   \x1b[0m{name}{USER}\x1b[0m",
-            f"{key}title  \x1b[0m{val}Data Engineer\x1b[0m",
-            f"{key}focus  \x1b[0m{val}Data Platforms{dot}Pipelines{dot}Decision Intelligence\x1b[0m",
+            f"{key}role   \x1b[0m{val}{USER}",
+            f"{key}title  \x1b[0m{val}Data Engineer",
+            f"{key}focus  \x1b[0m{val}Data Platforms{dot}Pipelines{dot}Decision Intelligence",
             "",
             f"{key}stack  \x1b[0m{val}Python{dot}SQL{dot}TypeScript{dot}PostgreSQL{dot}BigQuery",
-            f"{key2}       \x1b[0m{val}dbt{dot}Kestra{dot}PySpark{dot}Kafka/Redpanda{dot}Flink/PyFlink",
-            f"{key2}       \x1b[0m{val}Docker{dot}Next.js\x1b[0m",
+            f"{key}       \x1b[0m{val}dbt{dot}Kestra{dot}PySpark{dot}Kafka/Redpanda{dot}Flink/PyFlink",
+            f"{key}       \x1b[0m{val}Docker{dot}Next.js",
             "",
             f"{key}web    \x1b[0m{val}codered-azure.vercel.app",
             f"{key}in     \x1b[0m{val}linkedin.com/in/delebayo-joea",
             f"{key}mail   \x1b[0m{val}josephdelebayo@gmail.com",
-            f"{key}social \x1b[0m{val}Twitter {dim}\u00b7 \x1b[0m{val}@23asher_io",
+            f"{key}social \x1b[0m{val}Twitter {dim}\u00b7 {val}@23asher_io",
             "",
+            # The counters carry the inline-highlight role, which is the only
+            # place blue appears in the block.
             f"{key}github \x1b[0m{num}{stats['commits']}{val} commits (1y)"
             f"{dot}{num}{stats['prs']}{val} PRs{dot}{num}{stats['merged']}{val} merged",
-            f"{key2}       \x1b[0m{num}{stats['stars']}{val} stars{dot}{num}{stats['followers']}{val} followers"
+            f"{key}       \x1b[0m{num}{stats['stars']}{val} stars{dot}{num}{stats['followers']}{val} followers"
             f"{dot}{val}rank {num}{stats['rank']}",
-            f"{key2}       \x1b[0m{val}langs  {langs}",
+            f"{key}       \x1b[0m{val}langs  {langs}",
         ]
     )
+
+
+def assert_only_warm_background(block: str) -> None:
+    """Fail if any block text can paint a background other than the 101 header.
+
+    gifos maps background slots 40-47 and 100-107 off the same normal_colors and
+    bright_colors tables the foreground slots use, and 104 resolves to #60a5fa -
+    a bright blue box. Note the ranges are NOT 40..107: 48-99 are foreground
+    codes that merely sit inside that span (90 muted, 93 gold, 94 blue, 96 cyan),
+    so a bare range test rejects the whole profile block. Only 40-47 and 100-107
+    set a background. Nothing here should set one at all except the single 101
+    that forms the section header, so this is checked rather than assumed.
+    """
+    allowed = {"101"}
+    codes = {
+        c
+        for group in re.findall(r"\x1b\[([0-9;]*)m", block)
+        for c in group.split(";")
+        if c.isdigit()
+    }
+    bg = {
+        c
+        for c in codes
+        if 40 <= int(c) <= 47 or 100 <= int(c) <= 107
+    }
+    if bg - allowed:
+        raise SystemExit(f"profile block sets unexpected background slots: {bg - allowed}")
 
 
 def assert_fits(block: str, cols: int) -> None:
@@ -321,7 +330,7 @@ def assert_fits(block: str, cols: int) -> None:
 
 
 def draw_mark(t) -> None:
-    """Paint the ASHER mark in the left canvas using the reference logo face.
+    """Paint the ASHER mark in the left canvas using the display logo face.
 
     Five letters, one per row, drawn with the library's own gen_text() so the
     animation path is unchanged. The face is switched in for the mark and the
@@ -352,10 +361,12 @@ def draw_mark(t) -> None:
 
     t.set_font(str(FONT_MARK), MARK_SIZE, 0)
     for i, ch in enumerate("ASHER"):
-        # #60a5fa light blue is slot 95 in this theme. Slot 94 is #3b82f6, which
-        # made the mark the loudest element on the frame; slot 96 is #f8fafc,
-        # which made it white. Neither is the intended accent.
-        t.gen_text(f"\x1b[95m{ch}\x1b[0m", MARK_ROW + i, MARK_COL, contin=True)
+        # 37 neutral terminal ink #b3b9b8 - a supporting role, deliberately not
+        # an accent. It must not share the muted separator slot, or the mark
+        # reads as furniture rather than terminal art, and a cold dark slate here
+        # reads as dull blue-grey beside the warm roles. The mark stays secondary
+        # because it is neutral and small, not because it is dim.
+        t.gen_text(f"\x1b[37m{ch}\x1b[0m", MARK_ROW + i, MARK_COL, contin=True)
     # Restore the body face so nothing after this point inherits the mark's cells.
     t.set_font(str(FONT_FILE), FONT_SIZE, LINE_SPACING)
 
@@ -372,15 +383,22 @@ def main() -> None:
     t.set_prompt(PROMPT)
 
     # --- prompt, then the fetch command typed out ----------------------------
+    # The command is typed in 91 warm, then repainted in 92 green once it
+    # "resolves". delete_row() erases back to the post-prompt column so the
+    # recoloured text replaces the typed text in place:
+    #     t.gen_typing_text("\x1b[91mfetch.sh", ...)   # typed, warm
+    #     t.delete_row(1, prompt_col)                  # erase back
+    #     t.gen_text("\x1b[92mfetch.sh\x1b[0m", ...)    # resolved, green
+    # This is what stops the command reading as plain white body text.
     t.toggle_show_cursor(False)
     t.gen_text("", 1, count=18)
     t.gen_prompt(1, count=6)
+    prompt_col = t.curr_col
     t.toggle_show_cursor(True)
-    # Typed as plain foreground, the way a shell echoes what you type. An
-    # earlier version repainted the command in an accent colour as a highlight;
-    # that reads as decoration rather than as input, so it is dropped.
-    t.gen_typing_text("\x1b[97mfetch.sh\x1b[0m", 1, contin=True, speed=1)
-    t.gen_typing_text(f" -u {FETCH_USER}", 1, contin=True, speed=1)
+    t.gen_typing_text(f"\x1b[91mfetch.sh", 1, contin=True, speed=1)
+    t.delete_row(1, prompt_col)
+    t.gen_text(f"\x1b[92mfetch.sh\x1b[0m", 1, count=3, contin=True)
+    t.gen_typing_text(f"\x1b[92m -u {FETCH_USER}\x1b[0m", 1, contin=True, speed=1)
     t.toggle_show_cursor(False)
 
     # --- resolve, then lay out the profile ----------------------------------
@@ -394,6 +412,7 @@ def main() -> None:
     t.clone_frame(14)
 
     block = profile_block(stats)
+    assert_only_warm_background(block)
     assert_fits(block, t.num_cols)
     t.gen_text(block, INFO_ROW, INFO_COL, count=4, contin=True)
 
@@ -412,8 +431,11 @@ def main() -> None:
     t.clone_frame(24)
     t.toggle_show_cursor(True)
     t.gen_prompt(close_row, count=4)
+    # 92 green #96d988: the closing message keeps the resolved-command green
+    # rather than dropping to muted grey, which would collapse it into the same
+    # tone as the separator.
     t.gen_typing_text(
-        "\x1b[90m# thanks for stopping by\x1b[0m", close_row, contin=True, speed=1
+        "\x1b[92m# thanks for stopping by\x1b[0m", close_row, contin=True, speed=1
     )
     t.toggle_show_cursor(False)
     t.gen_text("", close_row, count=150, contin=True)
