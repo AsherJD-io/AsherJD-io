@@ -1,0 +1,8 @@
+# gifos render artifacts
+frames/
+header.gif
+output.gif
+.stats_cache.json
+
+__pycache__/
+*.pyc

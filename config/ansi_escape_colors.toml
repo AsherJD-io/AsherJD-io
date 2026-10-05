@@ -1,0 +1,37 @@
+# Ordaciti-derived colour language, reduced to a single slate/blue axis.
+# Every value below is one of the seven approved colours:
+#   bg     #0f172a
+#   deep   #2563eb
+#   mid    #3b82f6
+#   light  #60a5fa
+#   fg     #f8fafc
+#   muted  #cbd5e1
+#   dim    #64748b
+#
+# The 16 ANSI slots are filled by reusing that axis at different intensities.
+# No greens, reds or magentas are introduced, so the frame reads as one system
+# rather than a multi-colour terminal theme.
+
+[ordaciti.default_colors]
+fg = "#f8fafc"
+bg = "#0f172a"
+
+[ordaciti.normal_colors]
+black = "#64748b"
+red = "#2563eb"
+green = "#3b82f6"
+yellow = "#60a5fa"
+blue = "#2563eb"
+magenta = "#3b82f6"
+cyan = "#60a5fa"
+white = "#cbd5e1"
+
+[ordaciti.bright_colors]
+black = "#64748b"
+red = "#3b82f6"
+green = "#60a5fa"
+yellow = "#f8fafc"
+blue = "#3b82f6"
+magenta = "#60a5fa"
+cyan = "#f8fafc"
+white = "#f8fafc"

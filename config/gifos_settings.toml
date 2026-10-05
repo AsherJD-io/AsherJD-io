@@ -1,0 +1,21 @@
+# gifos runtime settings for the Asher profile terminal.
+# The library merges this over its bundled defaults, then applies
+# GIFOS_* environment variables on top.
+
+[general]
+debug = false
+cursor = "█"
+show_cursor = true
+blink_cursor = true
+user_name = "asher"
+fps = 15
+color_scheme = "ordaciti"
+loop_count = 0
+
+[files]
+frame_base_name = "frame_"
+frame_folder_name = "frames"
+# Relative output path. gifos resolves this at import time and shells out to
+# ffmpeg with it, so it must point at assets/ for the rendered GIF to land where
+# the README expects it.
+output_gif_name = "assets/header"

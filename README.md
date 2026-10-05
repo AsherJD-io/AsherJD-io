@@ -1,6 +1,4 @@
-<a href="https://codered-azure.vercel.app/">
-  <img src="./assets/header.gif" alt="Delebayo Asher - Data Engineer" width="100%">
-</a>
+<img src="./assets/header.gif" alt="Delebayo Asher - Data Engineer" width="100%">
 
 [![Portfolio](https://img.shields.io/badge/Portfolio-0f172a?style=flat-square)](https://codered-azure.vercel.app/)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat-square&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/delebayo-joea/)
