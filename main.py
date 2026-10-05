@@ -87,21 +87,43 @@ CACHE_FILE = HERE / ".stats_cache.json"
 
 # Geometry. The body font is a bitmap font measured at an 8x14 cell
 # (monospaced, A-Z all 8px wide; tallest glyphs 14px). At 6px leading the row
-# pitch is 20, so 780x640 resolves to 96x32 cells. Every layout constant below
-# is derived from that measured cell, not assumed.
+# pitch is 20. Every layout constant below is derived from that measured cell,
+# not assumed.
 #
 # The 8px cell is narrow, so the same content is ~496px wide. On a 900px canvas
 # that would leave a 203px dead margin on the right and break the balance, so
 # the canvas is narrowed to 780.
-WIDTH, HEIGHT = 780, 640
+#
+# HEIGHT IS NOT a constant. It is computed from the actual content bounds by
+# required_height() once the stats and therefore the profile block are known, so
+# the panel cannot drift out of sync with its contents. A hardcoded height left
+# a large dead region under the closing prompt; recomputing means adding or
+# removing a line changes the panel automatically.
+WIDTH = 780
 XPAD, YPAD = 18, 16
 FONT_SIZE, LINE_SPACING = 16, 6
 BODY_CELL_W = 8
 BODY_CELL_H = 14 + LINE_SPACING
+# Breathing room below the last content row, in pixels. Deliberately the same as
+# the side/top padding so the closing prompt sits symmetrically in the frame.
+BOTTOM_PAD = YPAD
 
 USER = "Delebayo Asher"
 HANDLE = "AsherJD-io"
 FETCH_USER = "asher"
+
+# Last verified public counters, used when GitHub cannot be reached at all and
+# no usable cache exists. Same schema as the live path so profile_block() is
+# schema-agnostic. Only a floor for offline reproducibility - it is never
+# preferred over live data, and it is not a source of truth about the account.
+VERIFIED_SNAPSHOT = {
+    "stars": 9,
+    "repos": 12,
+    "prs": 14,
+    "merged": 13,
+    "rank": "C+",
+    "languages": ["Python", "TypeScript", "JavaScript"],
+}
 
 # The prompt, in three parts: warm identity, a gold path component, and neutral
 # shell symbols between them.
@@ -173,48 +195,152 @@ def load_gifos():
     return _gifos
 
 
+def fetch_repo_count() -> int | None:
+    """Number of repositories the account owns, straight from the GraphQL API.
+
+    The package's stats helper has no repository count: it exposes
+    `total_repo_contributions`, which is repositoriesContributedTo - a different
+    field that includes repositories owned by other people. The only honest
+    source for "my repos" is repositories(ownerAffiliations: OWNER), so this
+    asks for it directly using the same token and endpoint the helper uses.
+
+    Returns None on any failure. The caller must handle that: a None rendered
+    into the profile would print the literal text "None repos".
+    """
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        return None
+    try:
+        import requests
+
+        query = """
+        query userInfo($user_name: String!) {
+            user(login: $user_name) {
+                repositories(first: 1, ownerAffiliations: [OWNER]) {
+                    totalCount
+                }
+            }
+        }
+        """
+        r = requests.post(
+            "https://api.github.com/graphql",
+            json={"query": query, "variables": {"user_name": HANDLE}},
+            headers={"Authorization": f"bearer {token}"},
+            timeout=30,
+        )
+        if r.status_code != 200:
+            print(f"WARN: repo count HTTP {r.status_code}")
+            return None
+        payload = r.json()
+        if "errors" in payload:
+            print(f"WARN: repo count GraphQL error: {payload['errors']}")
+            return None
+        count = payload["data"]["user"]["repositories"]["totalCount"]
+        if not isinstance(count, int):
+            print(f"WARN: repo count not an int: {count!r}")
+            return None
+        return count
+    except Exception as exc:  # network/JSON surprises must not kill the render
+        print(f"WARN: repo count failed: {exc}")
+        return None
+
+
+# The stats keys profile_block() reads. A cached snapshot written by an older
+# schema (it used to carry "commits" and "followers") must not be fed straight
+# to profile_block(), or the render dies on KeyError before any frame is drawn.
+# This is the contract both the cache reader and the live path are held to.
+STATS_SCHEMA = ("stars", "repos", "prs", "merged", "rank", "languages")
+
+
+def stats_are_valid(stats: object) -> bool:
+    """True when stats carries exactly the current schema, with usable values.
+
+    Checked rather than trusted, because the cache is untracked and can hold
+    whatever the last successful run wrote - including output from an older
+    schema after the fields change.
+    """
+    if not isinstance(stats, dict) or set(stats) != set(STATS_SCHEMA):
+        return False
+    if any(not isinstance(stats[k], int) for k in ("stars", "repos", "prs", "merged")):
+        return False
+    if not isinstance(stats["rank"], str) or not stats["rank"]:
+        return False
+    langs = stats["languages"]
+    return isinstance(langs, list) and all(isinstance(name, str) for name in langs)
+
+
+def read_cached_stats() -> dict | None:
+    """Load the last verified snapshot, or None if it is absent or unusable.
+
+    An unusable cache is reported and discarded rather than returned: falling
+    back to the built-in snapshot keeps the render reproducible offline, which
+    is the whole point of the cache existing.
+    """
+    if not CACHE_FILE.exists():
+        return None
+    try:
+        cached = json.loads(CACHE_FILE.read_text())
+    except (OSError, ValueError) as exc:
+        print(f"WARN: cache unreadable ({exc}); discarding")
+        return None
+    if not stats_are_valid(cached):
+        print(
+            f"WARN: cache schema is {sorted(cached) if isinstance(cached, dict) else 'not an object'}, "
+            f"expected {sorted(STATS_SCHEMA)}; discarding"
+        )
+        return None
+    return cached
+
+
 def fetch_stats() -> dict:
     """Public GitHub counters, via the package's own stats helper.
 
     fetch_github_stats() calls sys.exit() when GITHUB_TOKEN is missing, so the
-    token is checked here first and a snapshot keeps the render reproducible
-    offline. Every value is public profile data; nothing private is requested
-    and the token is never persisted.
+    token is checked here first and the cached snapshot keeps the render
+    reproducible offline. Every value is public profile data; nothing private is
+    requested and the token is never persisted.
+
+    Both exit paths return the same schema (STATS_SCHEMA), so profile_block()
+    never has to care which one produced the dict.
     """
+    # Offline: cache first, then the built-in snapshot. Both are schema-checked.
     if not os.getenv("GITHUB_TOKEN"):
         print("WARN: GITHUB_TOKEN unset")
-        if CACHE_FILE.exists():
+        cached = read_cached_stats()
+        if cached is not None:
             print("INFO: using cached stats")
-            return json.loads(CACHE_FILE.read_text())
+            return cached
         print("INFO: using verified snapshot")
-        return {
-            "stars": 9,
-            "followers": 1,
-            "commits": 207,
-            "prs": 10,
-            "merged": 8,
-            "rank": "C+",
-            "languages": ["Python", "TypeScript", "JavaScript"],
-        }
+        return dict(VERIFIED_SNAPSHOT)
 
     from gifos.utils.fetch_github_stats import fetch_github_stats
 
     s = fetch_github_stats(HANDLE, [], include_all_commits=False)
     if s is None:
         print("WARN: stats fetch failed")
-        if CACHE_FILE.exists():
-            return json.loads(CACHE_FILE.read_text())
+        cached = read_cached_stats()
+        if cached is not None:
+            return cached
         raise SystemExit("no stats and no cache")
 
     stats = {
         "stars": s.total_stargazers,
-        "followers": s.total_followers,
-        "commits": s.total_commits_last_year,
+        "repos": fetch_repo_count(),
         "prs": s.total_pull_requests_made,
         "merged": s.total_pull_requests_merged,
         "rank": s.user_rank.level,
         "languages": [name for name, _ in s.languages_sorted[:3]],
     }
+
+    # The repo count is a separate request from the package's helper, so it is
+    # the one field that can come back empty. Prefer the cached count, then the
+    # verified snapshot, over rendering a literal "None" into the profile.
+    if stats["repos"] is None:
+        fallback = read_cached_stats() or VERIFIED_SNAPSHOT
+        stats["repos"] = fallback["repos"]
+        print(f"WARN: repo count unavailable; using {stats['repos']} from snapshot")
+
+    assert stats_are_valid(stats), f"live stats off-schema: {stats}"
     print(f"INFO: stats {stats}")
     CACHE_FILE.write_text(json.dumps(stats, indent=2))
     return stats
@@ -278,13 +404,36 @@ def profile_block(stats: dict) -> str:
             "",
             # The counters carry the inline-highlight role, which is the only
             # place blue appears in the block.
-            f"{key}github \x1b[0m{num}{stats['commits']}{val} commits (1y)"
+            f"{key}github \x1b[0m{num}{stats['repos']}{val} repos"
             f"{dot}{num}{stats['prs']}{val} PRs{dot}{num}{stats['merged']}{val} merged",
-            f"{key}       \x1b[0m{num}{stats['stars']}{val} stars{dot}{num}{stats['followers']}{val} followers"
+            f"{key}       \x1b[0m{num}{stats['stars']}{val} stars"
             f"{dot}{val}rank {num}{stats['rank']}",
-            f"{key}       \x1b[0m{val}langs  {langs}",
+            # langs is a first-class field label on its own row, in the same label
+            # column as the rest - not a continuation of the value above it.
+            f"{key}langs  \x1b[0m{val}{langs}",
         ]
     )
+
+
+def required_height(block: str) -> int:
+    """Panel height needed for the settled frame, in pixels.
+
+    Derived from the content, not guessed. The bottom-most occupied row is the
+    closing prompt, which sits one row below the last line of the profile block
+    (close_row in main()). The library computes its row count as
+    (height - 2*ypad) // pitch, so the height that yields exactly that many rows
+    is the inverse of that expression:
+
+        height = 2*ypad + rows*pitch + bottom_pad
+
+    with rows = close_row. BOTTOM_PAD then adds the bottom breathing room. Both
+    the profile block length and the closing-prompt offset are read from the
+    same values main() uses, so gaining or losing a line moves the panel edge
+    automatically.
+    """
+    block_rows = len(block.split("\n"))
+    close_row = INFO_ROW + block_rows + 1
+    return 2 * YPAD + close_row * BODY_CELL_H + BOTTOM_PAD
 
 
 def assert_only_warm_background(block: str) -> None:
@@ -329,7 +478,7 @@ def assert_fits(block: str, cols: int) -> None:
             )
 
 
-def draw_mark(t) -> None:
+def draw_mark(t, height: int) -> None:
     """Paint the ASHER mark in the left canvas using the display logo face.
 
     Five letters, one per row, drawn with the library's own gen_text() so the
@@ -352,11 +501,11 @@ def draw_mark(t) -> None:
     need_rows = pitch * (len("ASHER") - 1) + line_h
     need_px_h = YPAD + (MARK_ROW - 1) * BODY_CELL_H + need_rows
     need_px_w = XPAD + (MARK_COL - 1) * BODY_CELL_W + ink_w
-    if need_px_h > HEIGHT or need_px_w > WIDTH:
+    if need_px_h > height or need_px_w > WIDTH:
         raise SystemExit(
             f"ASHER mark needs {need_rows}px tall at row {MARK_ROW} "
             f"({need_px_h}px) and {ink_w}px wide at col {MARK_COL} "
-            f"({need_px_w}px); canvas is {HEIGHT}x{WIDTH}"
+            f"({need_px_w}px); canvas is {height}x{WIDTH}"
         )
 
     t.set_font(str(FONT_MARK), MARK_SIZE, 0)
@@ -375,11 +524,19 @@ def main() -> None:
     sync_config()
     stats = fetch_stats()
 
+    # The block is built before the Terminal exists because it determines how
+    # tall the panel needs to be. Everything below then draws into a frame sized
+    # to the content rather than the other way round.
+    block = profile_block(stats)
+    assert_only_warm_background(block)
+    height = required_height(block)
+
     gifos = load_gifos()
     t = gifos.Terminal(
-        WIDTH, HEIGHT, XPAD, YPAD, str(FONT_FILE), FONT_SIZE, LINE_SPACING
+        WIDTH, height, XPAD, YPAD, str(FONT_FILE), FONT_SIZE, LINE_SPACING
     )
     print(f"INFO: grid {t.num_cols} cols x {t.num_rows} rows")
+    print(f"INFO: panel {WIDTH}x{height} from {len(block.split(chr(10)))} block lines")
     t.set_prompt(PROMPT)
 
     # --- prompt, then the fetch command typed out ----------------------------
@@ -411,15 +568,13 @@ def main() -> None:
     # prompt, the typed command, and then its output.
     t.clone_frame(14)
 
-    block = profile_block(stats)
-    assert_only_warm_background(block)
     assert_fits(block, t.num_cols)
     t.gen_text(block, INFO_ROW, INFO_COL, count=4, contin=True)
 
     # Drawn last. draw_mark() switches to the mark face and back, and each
     # letter is written at an explicit row and column, so the profile block
     # above is unaffected by it.
-    draw_mark(t)
+    draw_mark(t, height)
 
     # --- closing prompt ------------------------------------------------------
     # Pinned to an explicit row: gen_prompt() writes non-continuing, and the

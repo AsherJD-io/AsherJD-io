@@ -1,1 +1,5 @@
 github-readme-terminal==0.0.3
+# Imported directly by fetch_repo_count() for the repository-count GraphQL
+# query. It also arrives transitively via github-readme-terminal, but a direct
+# import deserves a direct requirement rather than an implicit one.
+requests>=2.31
