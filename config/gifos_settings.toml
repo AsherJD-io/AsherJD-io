@@ -4,7 +4,11 @@
 
 [general]
 debug = false
-cursor = "█"
+# The bitmap face gohufont-uni-14.pil is a latin-1 PIL bitmap font: it has no
+# block-drawing glyphs, so U+2588 raises UnicodeEncodeError inside
+# ImageFont.getmask() the moment the cursor is drawn. An underscore is the
+# library's own default and exists in this font.
+cursor = "_"
 show_cursor = true
 blink_cursor = true
 user_name = "asher"
